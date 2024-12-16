@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   Colors,
@@ -100,14 +101,14 @@ function App(): React.JSX.Element {
 
     try {
       const response = await axios.get<Task[]>(
-        'https://jsonplaceholder.typicode.com/todos', //Seems fine to hard code this since it is only used once, it's already DRY
+        'https://jsonplaceholder.typicode.com/todos',
       );
-      console.log('response', response);
       setState(prevState => ({
         ...prevState,
         tasks: response.data,
         loading: false,
       }));
+      await AsyncStorage.setItem('tasks', JSON.stringify(response.data)); // Store tasks in AsyncStorage
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setState(prevState => ({
@@ -120,21 +121,30 @@ function App(): React.JSX.Element {
 
   // Load tasks from AsyncStorage on initial load
   useEffect(() => {
-    const loadTasks = async () => {
+    const loadStoredTasks = async () => {
       try {
+        const storedTasks = await AsyncStorage.getItem('tasks');
+
         setState(prevState => ({
           ...prevState,
           loading: false,
           refreshing: false,
         }));
-        const tasks = await fetchTasks(); // Fetch from API if no data in storage
-        console.log('tasks', tasks);
+        if (storedTasks) {
+          setState(prevState => ({
+            ...prevState,
+            tasks: JSON.parse(storedTasks),
+            loading: false,
+          }));
+        } else {
+          fetchTasks(); // Fetch from API if no data in storage
+        }
       } catch (err) {
         console.error('Failed to load tasks from storage', err);
         fetchTasks(); // Fallback to fetching from API
       }
     };
-    loadTasks();
+    loadStoredTasks();
   }, []);
 
   return (
