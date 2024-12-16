@@ -3,11 +3,11 @@ import {StyleSheet, View, FlatList, ListRenderItemInfo} from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 
 import {
   Button,
   Card,
-  IconButton,
   ActivityIndicator,
   Appbar,
   Text,
@@ -174,7 +174,17 @@ export default function App(): React.JSX.Element {
         </View>
 
         {/* Render Skeleton Loader when tasks are being fetched and we already have some tasks loaded, right? The loading spinner only shows up once */}
-        {state.loading && state.refreshing ? null : (
+        {state.loading && state.refreshing ? (
+          <SkeletonPlaceholder
+            backgroundColor="lightgray"
+            highlightColor="#ffffff">
+            <>
+              <View style={styles.skeletonCard} />
+              <View style={styles.skeletonCard} />
+              <View style={styles.skeletonCard} />
+            </>
+          </SkeletonPlaceholder>
+        ) : (
           <FlatList
             data={filteredTasks}
             renderItem={({item}: ListRenderItemInfo<Task>) => (
