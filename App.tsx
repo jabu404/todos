@@ -1,34 +1,17 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React, {useState, useEffect, PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import React, {useState, useEffect, useCallback} from 'react';
+import {StyleSheet, View, FlatList, ListRenderItemInfo} from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  Button,
+  Card,
+  IconButton,
+  ActivityIndicator,
+  Appbar,
+  Text,
+} from 'react-native-paper';
 
 interface Task {
   id: number;
@@ -50,39 +33,7 @@ enum FILTER {
   INCOMPLETE,
 }
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
+export default function App(): React.JSX.Element {
   const [state, setState] = useState<AppState>({
     tasks: [],
     loading: true,
@@ -147,57 +98,190 @@ function App(): React.JSX.Element {
     loadStoredTasks();
   }, []);
 
+  const toggleComplete = (taskId: number) => {
+    setState(prevState => ({
+      ...prevState,
+      tasks: prevState.tasks.map(task =>
+        task.id === taskId ? {...task, completed: !task.completed} : task,
+      ),
+    }));
+  };
+
+  const handleRefresh = useCallback(async () => {
+    setState(prevState => ({...prevState, refreshing: true}));
+    await fetchTasks(); // Refresh by fetching tasks again
+    setState(prevState => ({...prevState, refreshing: false}));
+  }, []);
+
+  // Filter tasks based on completion status
+  const filteredTasks = state.tasks.filter(task => {
+    if (state.filter === FILTER.COMPLETED) return task.completed;
+    if (state.filter === FILTER.INCOMPLETE) return !task.completed;
+    return true;
+  });
+
+  // Loading spinner, skeleton loader, or error message
+  if (state.loading && !state.refreshing) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" animating={true} />
+        <Text style={styles.loadingText}>Loading tasks...</Text>
+      </View>
+    );
+  }
+
+  if (state.error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{state.error}</Text>
+        <Button mode="contained" onPress={handleRefresh}>
+          Retry
+        </Button>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+    <SafeAreaProvider style={styles.top}>
+      <View style={styles.container}>
+        {/* Material UI-style AppBar */}
+        <Appbar.Header style={styles.appBar}>
+          <Appbar.Content title="Your tasks" />
+        </Appbar.Header>
+        {/* Filter Options */}
+        <View style={styles.filterContainer}>
+          <Button
+            mode={state.filter === FILTER.ALL ? 'contained' : 'text'}
+            onPress={() =>
+              setState(prevState => ({...prevState, filter: FILTER.ALL}))
+            }>
+            All Tasks
+          </Button>
+          <Button
+            mode={state.filter === FILTER.COMPLETED ? 'contained' : 'text'}
+            onPress={() =>
+              setState(prevState => ({...prevState, filter: FILTER.COMPLETED}))
+            }>
+            Completed
+          </Button>
+          <Button
+            mode={state.filter === FILTER.INCOMPLETE ? 'contained' : 'text'}
+            onPress={() =>
+              setState(prevState => ({...prevState, filter: FILTER.INCOMPLETE}))
+            }>
+            Incomplete
+          </Button>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        {/* Render Skeleton Loader when tasks are being fetched and we already have some tasks loaded, right? The loading spinner only shows up once */}
+        {state.loading && state.refreshing ? null : (
+          <FlatList
+            data={filteredTasks}
+            renderItem={({item}: ListRenderItemInfo<Task>) => (
+              <>
+                <Card
+                  style={[styles.card, item.completed && styles.completedCard]}>
+                  <Card.Title
+                    title={item.title}
+                    titleStyle={[item.completed && styles.completedText]}
+                    right={props => (
+                      <Button
+                        {...props}
+                        mode="contained-tonal"
+                        maxFontSizeMultiplier={0.5}
+                        style={{marginRight: 16}}
+                        contentStyle={styles.itemButton}
+                        icon={
+                          item.completed
+                            ? 'checkbox-outline'
+                            : 'checkbox-blank-outline'
+                        }
+                        onPress={() => toggleComplete(item.id)}
+                        accessibilityLabel={
+                          item.completed
+                            ? 'Unmark as complete'
+                            : 'Mark as complete'
+                        }>
+                        {item.completed
+                          ? 'Unmark as complete'
+                          : 'Mark as complete'}
+                      </Button>
+                    )}
+                  />
+                </Card>
+              </>
+            )}
+            keyExtractor={item => item.id.toString()}
+            refreshing={state.refreshing}
+            onRefresh={handleRefresh}
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  top: {
+    padding: 16,
+    backgroundColor: '#e8eaed',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  container: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 800,
+    marginLeft: 'auto',
+    marginRight: 'auto',
   },
-  sectionDescription: {
-    marginTop: 8,
+  appBar: {
+    backgroundColor: 'transparent',
+  },
+  card: {
+    marginBottom: 15,
+    borderRadius: 10,
+    elevation: 3,
+    marginHorizontal: 2,
+  },
+  completedCard: {
+    backgroundColor: '#d0f8d0', // Light gren background for completed tasks
+  },
+  completedText: {
+    textDecorationLine: 'line-through',
+    color: 'gray',
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#555',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  errorText: {
+    marginBottom: 20,
     fontSize: 18,
-    fontWeight: '400',
+    color: 'red',
+    fontWeight: 'bold',
   },
-  highlight: {
-    fontWeight: '700',
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  skeletonCard: {
+    marginBottom: 15,
+    height: 60,
+    borderRadius: 10,
+  },
+  itemButton: {
+    flexDirection: 'row-reverse',
   },
 });
-
-export default App;
