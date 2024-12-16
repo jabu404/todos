@@ -5,8 +5,7 @@
  * @format
  */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useState, useEffect, PropsWithChildren} from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import axios from 'axios';
 
 import {
   Colors,
@@ -28,6 +28,26 @@ import {
 type SectionProps = PropsWithChildren<{
   title: string;
 }>;
+
+interface Task {
+  id: number;
+  title: string;
+  completed: boolean;
+}
+
+interface AppState {
+  tasks: Task[];
+  loading: boolean;
+  error: string | null;
+  refreshing: boolean;
+  filter: FILTER;
+}
+
+enum FILTER {
+  ALL,
+  COMPLETED,
+  INCOMPLETE,
+}
 
 function Section({children, title}: SectionProps): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -61,6 +81,61 @@ function App(): React.JSX.Element {
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
+
+  const [state, setState] = useState<AppState>({
+    tasks: [],
+    loading: true,
+    error: null,
+    refreshing: false,
+    filter: FILTER.ALL,
+  });
+
+  // Fetch all tasks from the API
+  const fetchTasks = async () => {
+    setState(prevState => ({
+      ...prevState,
+      loading: true,
+      error: null,
+    }));
+
+    try {
+      const response = await axios.get<Task[]>(
+        'https://jsonplaceholder.typicode.com/todos', //Seems fine to hard code this since it is only used once, it's already DRY
+      );
+      console.log('response', response);
+      setState(prevState => ({
+        ...prevState,
+        tasks: response.data,
+        loading: false,
+      }));
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      setState(prevState => ({
+        ...prevState,
+        loading: false,
+        error: 'Failed to load tasks. Please try again later.',
+      }));
+    }
+  };
+
+  // Load tasks from AsyncStorage on initial load
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        setState(prevState => ({
+          ...prevState,
+          loading: false,
+          refreshing: false,
+        }));
+        const tasks = await fetchTasks(); // Fetch from API if no data in storage
+        console.log('tasks', tasks);
+      } catch (err) {
+        console.error('Failed to load tasks from storage', err);
+        fetchTasks(); // Fallback to fetching from API
+      }
+    };
+    loadTasks();
+  }, []);
 
   return (
     <SafeAreaView style={backgroundStyle}>
